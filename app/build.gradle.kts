@@ -19,6 +19,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp") version "2.1.0-1.0.29"
     id("org.jetbrains.kotlin.plugin.compose")
+    kotlin("plugin.serialization") version "2.0.21" apply true
 }
 
 android {
@@ -80,6 +81,14 @@ dependencies {
     implementation("androidx.room:room-runtime:${rootProject.extra["room_version"]}")
     ksp("androidx.room:room-compiler:${rootProject.extra["room_version"]}")
     implementation("androidx.room:room-ktx:${rootProject.extra["room_version"]}")
+   // implementation("androidx.security:security-crypto-ktx:1.0.0")
+    implementation("androidx.security:security-crypto:1.0.0")
+
+    //Crypto
+    implementation ("androidx.security:security-crypto:1.1.0-alpha03")
+
+    //Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.1")
 
     // Testing
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

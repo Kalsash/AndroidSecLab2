@@ -44,9 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.InventoryTopAppBar
 import com.example.inventory.R
+import com.example.inventory.SharedData
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.InventoryTheme
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Currency
 import java.util.Locale
@@ -78,14 +80,20 @@ fun ItemEntryScreen(
             itemUiState = viewModel.itemUiState,
             onItemValueChange = viewModel::updateUiState,
             onSaveClick = {
-                // Note: If the user rotates the screen very fast, the operation may get cancelled
-                // and the item may not be saved in the Database. This is because when config
-                // change occurs, the Activity will be recreated and the rememberCoroutineScope will
-                // be cancelled - since the scope is bound to composition.
                 coroutineScope.launch {
                     if (viewModel.saveItem()) {
                         navigateBack()
                     }
+                }
+            },
+            canLoad = true,
+            isNew = true,
+            onLoadClick = {
+                coroutineScope.launch {
+                    SharedData.dataToLoad.update {
+                        it.copy(needToLoad = true)
+                    }
+                    navigateBack()
                 }
             },
             modifier = Modifier
@@ -105,15 +113,19 @@ fun ItemEntryBody(
     itemUiState: ItemUiState,
     onItemValueChange: (ItemDetails) -> Unit,
     onSaveClick: () -> Unit,
+    canLoad: Boolean = false,
+    isNew: Boolean = true,
+    onLoadClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier.padding(dimensionResource(id = R.dimen.padding_medium)),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(id = R.dimen.padding_large))
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         ItemInputForm(
             itemDetails = itemUiState.itemDetails,
             itemUiState = itemUiState,
+            isNew = isNew,
             onValueChange = onItemValueChange,
             modifier = Modifier.fillMaxWidth()
         )
@@ -123,6 +135,15 @@ fun ItemEntryBody(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(R.string.save_action))
+        }
+        if (canLoad) {
+            Button(
+                onClick = onLoadClick,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = stringResource(R.string.load_action))
+            }
         }
     }
 }
@@ -134,6 +155,7 @@ fun ItemInputForm(
     modifier: Modifier = Modifier,
     onValueChange: (ItemDetails) -> Unit = {},
     enabled: Boolean = true,
+    isNew: Boolean = true
 ) {
     Column(
         modifier = modifier,
@@ -285,6 +307,25 @@ fun ItemInputForm(
                 )
             }
         }
+
+        if (!isNew) {
+            Column(modifier = modifier.padding(0.dp)) {
+                OutlinedTextField(
+                    value = itemDetails.sourceType,
+                    onValueChange = { },
+                    label = { Text(stringResource(R.string.source_type)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
+                    enabled = enabled,
+                    singleLine = true
+                )
+            }
+        }
         if (enabled) {
             Text(
                 text = stringResource(R.string.required_fields),
@@ -307,6 +348,6 @@ private fun ItemEntryScreenPreview() {
                 agentEmail = "bob@gmail.com",
                 agentPhoneNumber = "+78005553535"
             )
-        ), onItemValueChange = {}, onSaveClick = {})
+        ), onItemValueChange = {}, onSaveClick = {}, onLoadClick = {})
     }
 }

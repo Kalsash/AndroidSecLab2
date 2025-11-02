@@ -25,16 +25,45 @@ import com.example.inventory.data.Item
 import com.example.inventory.data.ItemsRepository
 import java.text.NumberFormat
 import android.util.Patterns
+import androidx.lifecycle.viewModelScope
+import com.example.inventory.Preferences
+import com.example.inventory.SharedData
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
 /**
  * ViewModel to validate and insert items in the Room database.
  */
 class ItemEntryViewModel(private val itemsRepository: ItemsRepository) : ViewModel() {
 
+    init {
+        viewModelScope.launch {
+            SharedData.dataToLoad.collect { collectedData ->
+                if (collectedData.needToLoad && collectedData.data != null) {
+                    itemsRepository.insertItem(collectedData.data.copy(id = 0, sourceType = "file").toItem())
+                    SharedData.dataToLoad.update { updatedData ->
+                        updatedData.copy(needToLoad = false, data = null)
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Holds current item ui state
      */
-    var itemUiState by mutableStateOf(ItemUiState())
+    private val useDefaultItemsQuantity = SharedData.preferences.sharedPreferences.getBoolean(
+        Preferences.USE_DEFAULT_ITEMS_QUANTITY,
+        false
+    )
+    private val defaultItemsQuantity = SharedData.preferences.sharedPreferences.getString(
+        Preferences.DEFAULT_ITEMS_QUANTITY,
+        "1"
+    )!!
+    var itemUiState by mutableStateOf(ItemUiState(
+        itemDetails = if (useDefaultItemsQuantity) ItemDetails(quantity = defaultItemsQuantity) else ItemDetails()
+    ))
         private set
 
     /**
@@ -53,7 +82,7 @@ class ItemEntryViewModel(private val itemsRepository: ItemsRepository) : ViewMod
         val (isValid, errorDetails) = validateInput()
         itemUiState = ItemUiState(itemDetails = itemUiState.itemDetails, errorDetails = errorDetails)
         if (isValid) {
-            itemsRepository.insertItem(itemUiState.itemDetails.toItem())
+            itemsRepository.insertItem(itemUiState.itemDetails.copy(sourceType = "manual").toItem())
         }
         return isValid
     }
@@ -106,6 +135,7 @@ data class ItemUiState(
     //val isEntryValid: Boolean = false,
 )
 
+@Serializable
 data class ItemDetails(
     val id: Int = 0,
     val name: String = "",
@@ -113,7 +143,8 @@ data class ItemDetails(
     val quantity: String = "",
     val agentName: String = "",
     val agentEmail: String = "",
-    val agentPhoneNumber: String = ""
+    val agentPhoneNumber: String = "",
+    val sourceType: String = ""
 ) {
     override fun toString(): String {
         var result = "Name: $name\nPrice: $price\nQuantity: $quantity\n"
@@ -124,7 +155,10 @@ data class ItemDetails(
             result += "Agent Email: $agentEmail\n"
         }
         if (agentPhoneNumber.isNotBlank()) {
-            result += "Agent Phone: $agentPhoneNumber"
+            result += "Agent Phone: $agentPhoneNumber\n"
+        }
+        if (sourceType.isNotBlank()) {
+            result += "Source Type: $sourceType"
         }
         return result
     }
@@ -151,7 +185,8 @@ fun ItemDetails.toItem(): Item = Item(
     quantity = quantity.toIntOrNull() ?: 0,
     agentName = agentName,
     agentEmail = agentEmail,
-    agentPhoneNumber = agentPhoneNumber
+    agentPhoneNumber = agentPhoneNumber,
+    sourceType = sourceType
 )
 
 fun Item.formatedPrice(): String {
@@ -176,5 +211,6 @@ fun Item.toItemDetails(): ItemDetails = ItemDetails(
     quantity = quantity.toString(),
     agentName = agentName,
     agentEmail = agentEmail,
-    agentPhoneNumber = agentPhoneNumber
+    agentPhoneNumber = agentPhoneNumber,
+    sourceType = sourceType
 )

@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,11 +57,15 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.InventoryTopAppBar
+import com.example.inventory.Preferences
 import com.example.inventory.R
+import com.example.inventory.SharedData
 import com.example.inventory.data.Item
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
@@ -83,6 +88,8 @@ fun ItemDetailsScreen(
     viewModel: ItemDetailsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val uiState = viewModel.uiState.collectAsState()
+    val hideImportantData = SharedData.preferences.sharedPreferences.getBoolean(Preferences.HIDE_IMPORTANT_DATA, false)
+    val prohibitSendingData = SharedData.preferences.sharedPreferences.getBoolean(Preferences.PROHIBIT_SENDING_DATA, false)
     val coroutineScope = rememberCoroutineScope()
     Scaffold(
         topBar = {
@@ -112,8 +119,11 @@ fun ItemDetailsScreen(
     ) { innerPadding ->
         ItemDetailsBody(
             itemDetailsUiState = uiState.value,
+            hideImportantData = hideImportantData,
+            prohibitSendingData = prohibitSendingData,
             onSellItem = { viewModel.reduceQuantityByOne() },
             onShareItem = { viewModel.share() },
+            onSaveItem = { viewModel.save() },
             onDelete = {
                 // Note: If the user rotates the screen very fast, the operation may get cancelled
                 // and the item may not be deleted from the Database. This is because when config
@@ -138,8 +148,11 @@ fun ItemDetailsScreen(
 @Composable
 private fun ItemDetailsBody(
     itemDetailsUiState: ItemDetailsUiState,
+    hideImportantData: Boolean,
+    prohibitSendingData: Boolean,
     onSellItem: () -> Unit,
     onShareItem: () -> Unit,
+    onSaveItem: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -149,7 +162,9 @@ private fun ItemDetailsBody(
     ) {
         var deleteConfirmationRequired by rememberSaveable { mutableStateOf(false) }
         ItemDetails(
-            item = itemDetailsUiState.itemDetails.toItem(), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            item = itemDetailsUiState.itemDetails.toItem(),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            hideImportantData = hideImportantData
         )
         //Column(modifier = modifier.padding(start = 0.dp, end = 0.dp, top = 4.dp)) {
             Button(
@@ -163,9 +178,17 @@ private fun ItemDetailsBody(
             Button(
                 onClick = onShareItem,
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small
+                shape = MaterialTheme.shapes.small,
+                enabled = !prohibitSendingData
             ) {
                 Text(stringResource(R.string.share))
+            }
+            Button(
+                onClick = onSaveItem,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(stringResource(R.string.save))
             }
             OutlinedButton(
                 onClick = { deleteConfirmationRequired = true },
@@ -191,7 +214,7 @@ private fun ItemDetailsBody(
 
 @Composable
 fun ItemDetails(
-    item: Item, modifier: Modifier = Modifier
+    item: Item, modifier: Modifier = Modifier, hideImportantData: Boolean
 ) {
     Card(
         modifier = modifier, colors = CardDefaults.cardColors(
@@ -244,7 +267,8 @@ fun ItemDetails(
                             id = R.dimen
                                 .padding_medium
                         )
-                    )
+                    ),
+                    hideImportantData = hideImportantData
                 )
             }
             if (item.agentEmail.isNotBlank()) {
@@ -256,13 +280,27 @@ fun ItemDetails(
                             id = R.dimen
                                 .padding_medium
                         )
-                    )
+                    ),
+                    hideImportantData = hideImportantData
                 )
             }
             if (item.agentPhoneNumber.isNotBlank()) {
                 ItemDetailsRow(
                     labelResID = R.string.agent_phone_number,
                     itemDetail = item.agentPhoneNumber,
+                    modifier = Modifier.padding(
+                        horizontal = dimensionResource(
+                            id = R.dimen
+                                .padding_medium
+                        )
+                    ),
+                    hideImportantData = hideImportantData
+                )
+            }
+            if (item.sourceType.isNotBlank()) {
+                ItemDetailsRow(
+                    labelResID = R.string.source_type,
+                    itemDetail = item.sourceType,
                     modifier = Modifier.padding(
                         horizontal = dimensionResource(
                             id = R.dimen
@@ -278,12 +316,12 @@ fun ItemDetails(
 
 @Composable
 private fun ItemDetailsRow(
-    @StringRes labelResID: Int, itemDetail: String, modifier: Modifier = Modifier
+    @StringRes labelResID: Int, itemDetail: String, modifier: Modifier = Modifier, hideImportantData: Boolean = false
 ) {
     Row(modifier = modifier) {
         Text(text = stringResource(labelResID))
         Spacer(modifier = Modifier.weight(1f))
-        Text(text = itemDetail, fontWeight = FontWeight.Bold)
+        Text(text = if (hideImportantData) "****" else itemDetail, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -313,6 +351,6 @@ fun ItemDetailsScreenPreview() {
     InventoryTheme {
         ItemDetailsBody(ItemDetailsUiState(
             outOfStock = true, itemDetails = ItemDetails(1, "Pen", "$100", "10", "Bob", "bob@gmail.com", "+78005553535")
-        ), onSellItem = {}, onShareItem = {}, onDelete = {})
+        ), onSellItem = {}, onShareItem = {}, onSaveItem = {}, onDelete = {}, hideImportantData = false, prohibitSendingData = false)
     }
 }
